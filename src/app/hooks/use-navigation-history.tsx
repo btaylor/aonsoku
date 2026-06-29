@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useNavigationType } from 'react-router-dom'
 import { MouseButton } from '@/utils/browser'
+import { isMacOS } from '@/utils/desktop'
+
+const SWIPE_THRESHOLD = 60  // minimum deltaX to count as a navigation gesture
+const SWIPE_COOLDOWN = 500  // ms before another swipe can fire
 
 const useNavigationHistory = () => {
   const navigationType = useNavigationType()
@@ -51,6 +55,32 @@ const useNavigationHistory = () => {
 
     window.addEventListener('mousedown', handleMouseButtons)
     return () => window.removeEventListener('mousedown', handleMouseButtons)
+  }, [navigate])
+
+  // macOS two-finger swipe gesture for in-app navigation.
+  // The wheel event fires when the trackpad produces horizontal overscroll (no
+  // scrollable content to consume deltaX), which is the back/forward gesture.
+  // A cooldown prevents repeated firings from a single swipe.
+  useEffect(() => {
+    if (!isMacOS) return
+
+    let lastFired = 0
+
+    const handleWheel = (e: WheelEvent) => {
+      const now = Date.now()
+      const isHorizontalDominant = Math.abs(e.deltaX) > Math.abs(e.deltaY)
+
+      if (!isHorizontalDominant || Math.abs(e.deltaX) < SWIPE_THRESHOLD) return
+      if (now - lastFired < SWIPE_COOLDOWN) return
+
+      lastFired = now
+
+      if (e.deltaX < 0 && window.history.state?.idx > 0) navigate(-1)
+      if (e.deltaX > 0 && window.history.state?.idx < window.history.length - 1) navigate(1)
+    }
+
+    window.addEventListener('wheel', handleWheel, { passive: true })
+    return () => window.removeEventListener('wheel', handleWheel)
   }, [navigate])
 
   return { canGoBack, canGoForward, goBack, goForward }
