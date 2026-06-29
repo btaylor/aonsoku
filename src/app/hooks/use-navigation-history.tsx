@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useNavigationType } from 'react-router-dom'
+import { MouseButton } from '@/utils/browser'
 
 const useNavigationHistory = () => {
   const navigationType = useNavigationType()
@@ -34,6 +35,23 @@ const useNavigationHistory = () => {
   const goForward = () => {
     if (canGoForward) navigate(1)
   }
+
+  // Intercept mouse back/forward buttons (3/4) for in-app navigation.
+  // Reads window.history.state directly to avoid stale canGoBack/canGoForward closures.
+  useEffect(() => {
+    const handleMouseButtons = (e: MouseEvent) => {
+      if (e.button === MouseButton.Back) {
+        e.preventDefault()
+        if (window.history.state?.idx > 0) navigate(-1)
+      } else if (e.button === MouseButton.Forward) {
+        e.preventDefault()
+        if (window.history.state?.idx < window.history.length - 1) navigate(1)
+      }
+    }
+
+    window.addEventListener('mousedown', handleMouseButtons)
+    return () => window.removeEventListener('mousedown', handleMouseButtons)
+  }, [navigate])
 
   return { canGoBack, canGoForward, goBack, goForward }
 }
